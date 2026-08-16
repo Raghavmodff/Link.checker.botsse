@@ -10,7 +10,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.error import NetworkError, Conflict
 
 # --- CONFIG FROM ENVIRONMENT VARIABLES ---
-TOKEN = os.getenv('TELEGRAM_TOKEN', '8953861489:AAEXhPO-FyYUXi3qISu46eDtpGmVIMT4kWc')
+TOKEN = os.getenv('TELEGRAM_TOKEN', '8953861489:AAFcTbss72csyDG95qaA9e2CdvqRQSsR1t4')
 CHAT_ID = os.getenv('CHAT_ID', '-1004428551744')
 SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'thailandserver89977@gmail.com') 
 SENDER_PASSWORD = os.getenv('SENDER_PASSWORD', 'ubaasgrskpmynmio')           
