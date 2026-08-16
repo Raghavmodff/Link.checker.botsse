@@ -82,7 +82,7 @@ async def check_url(session, url):
         return "Not Working ❌"
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "👋 <b>Bot Active Hai!</b>\n\nCommands:\n/add <link> - Add link for monitoring\n/remove <link> - Remove link\n/list - View all active monitored links"
+    msg = "👋 <b>Bot Active Hai!</b>\n\nCommands:\n/add [link] - Add link for monitoring\n/remove [link] - Remove link\n/list - View all active monitored links"
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
