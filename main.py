@@ -24,7 +24,8 @@ def load_links():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
-                return set(json.load(f))
+                data = json.load(f)
+                return set(data)
         except Exception as e:
             print(f"Error loading JSON data: {e}")
     return set()
@@ -36,7 +37,6 @@ def save_links(links_set):
     except Exception as e:
         print(f"Error saving JSON data: {e}")
 
-monitored_links = load_links()
 status_track = {}
 
 async def handle_ping(request):
@@ -95,6 +95,8 @@ async def add_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     link = context.args[0].strip()
+    monitored_links = load_links()
+
     if link in monitored_links:
         await update.message.reply_text("⚠️ Yeh link pehle se list me check ho raha hai!")
         return
@@ -128,6 +130,8 @@ async def remove_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     link = context.args[0].strip()
+    monitored_links = load_links()
+
     if link in monitored_links:
         monitored_links.remove(link)
         save_links(monitored_links)
@@ -137,13 +141,14 @@ async def remove_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Yeh link monitoring list me nahi hai!")
 
 async def list_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    monitored_links = load_links()
     if not monitored_links:
         await update.message.reply_text("📂 Abhi koi link monitor nahi ho raha hai. /add se add karo!")
         return
 
     msg = "📋 <b>Monitored Links List:</b>\n\n"
     for idx, link in enumerate(list(monitored_links), 1):
-        status = status_track.get(link, "Unknown")
+        status = status_track.get(link, "Not Working ❌")
         msg += f"{idx}. {link}\n📊 Status: {status}\n\n"
     
     try:
@@ -153,6 +158,7 @@ async def list_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def monitor_loop(app):
     while True:
+        monitored_links = load_links()
         if monitored_links:
             async with aiohttp.ClientSession() as session:
                 for link in list(monitored_links.copy()):
