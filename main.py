@@ -3,11 +3,10 @@ import json
 import asyncio
 import aiohttp
 import smtplib
-from aiohttp import web
+import subprocess
 from email.message import EmailMessage
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram.error import NetworkError, Conflict
 
 # --- CONFIG FROM ENVIRONMENT VARIABLES ---
 TOKEN = os.getenv('TELEGRAM_TOKEN', '8953861489:AAFcTbss72csyDG95qaA9e2CdvqRQSsR1t4')
@@ -19,7 +18,6 @@ SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 465 
 DATA_FILE = "links.json"
 
-# --- JSON PERSISTENCE FUNCTIONS ---
 def load_links():
     if os.path.exists(DATA_FILE):
         try:
@@ -30,32 +28,25 @@ def load_links():
             print(f"Error loading JSON data: {e}")
     return set()
 
-def save_links(links_set):
+def save_and_commit_links(links_set):
     try:
+        # Save updated list to links.json
         with open(DATA_FILE, "w") as f:
             json.dump(list(links_set), f, indent=4)
+        
+        # Git commit and push changes back to GitHub repository
+        subprocess.run(["git", "config", "user.name", "GitHub Action Bot"], check=False)
+        subprocess.run(["git", "config", "user.email", "bot@github.com"], check=False)
+        subprocess.run(["git", "add", DATA_FILE], check=False)
+        subprocess.run(["git", "commit", "-m", "Auto-remove active link from links.json"], check=False)
+        subprocess.run(["git", "push"], check=False)
+        print("✅ links.json successfully updated and committed to GitHub!")
     except Exception as e:
-        print(f"Error saving JSON data: {e}")
-
-status_track = {}
-
-async def handle_ping(request):
-    return web.Response(text="Bot is running perfectly 24/7! 🚀")
-
-async def run_web_server():
-    app = web.Application()
-    app.router.add_get('/', handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"🌐 Web server started on port {port}")
+        print(f"Error committing JSON data: {e}")
 
 def send_email_sync(subject, body):
     if not SENDER_EMAIL or not SENDER_PASSWORD:
         return
-        
     try:
         msg = EmailMessage()
         msg.set_content(body)
@@ -81,31 +72,44 @@ async def check_url(session, url):
     except Exception:
         return "Not Working ❌"
 
-async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "👋 <b>Bot Active Hai!</b>\n\nCommands:\n/add [link] - Add link for monitoring\n/remove [link] - Remove link\n/list - View all active monitored links"
-    await update.message.reply_text(msg, parse_mode="HTML")
-
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = "ℹ️ <b>Help Options:</b>\n\nUse <code>/add https://example.com</code> to start tracking any server link."
-    await update.message.reply_text(msg, parse_mode="HTML")
-
-async def add_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("⚠️ Link to do! Example:\n/add https://example.com")
-        return
-    
-    link = context.args[0].strip()
+async def check_links_once(bot):
     monitored_links = load_links()
-
-    if link in monitored_links:
-        await update.message.reply_text("⚠️ Yeh link pehle se list me check ho raha hai!")
+    if not monitored_links:
+        print("ℹ️ No links in links.json to check.")
         return
+
+    print(f"🔎 Checking {len(monitored_links)} links from links.json...")
+    updated = False
 
     async with aiohttp.ClientSession() as session:
-        current_status = await check_url(session, link)
-    
-    if current_status == "Working ✅":
-        msg = f"🎉 <b>Link is ALREADY ACTIVE!</b>\n\n🔗 <b>Link:</b> {link}\n📊 <b>Status:</b> {current_status}\n\n🛑 <i>No need to monitor. Email alert sent instantly!</i>"
+        for link in list(monitored_links):
+            status = await check_url(session, link)
+            print(f"Link: {link} -> Status: {status}")
+
+            if status == "Working ✅":
+                msg_tg = f"🎉 <b>LINK IS NOW ACTIVE!</b>\n\n🔗 <b>Link:</b> {link}\n📊 <b>Status:</b> {status}\n\n🛑 <i>Link automatically removed from GitHub links.json!</i>"
+                try:
+                    await bot.send_message(chat_id=CHAT_ID, text=msg_tg, parse_mode="HTML")
+                except Exception as e:
+                    print(f"Failed to send Telegram alert: {e}")
+                
+                email_subject = "Success Alert: Link is ACTIVE!"
+                email_body = f"Link is now Active!\n\nLink: {link}\nStatus: {status}\n\nRemoved from monitoring list."
+                await send_email_async(email_subject, email_body)
+
+                monitored_links.remove(link)
+                updated = True
+
+    if updated:
+        save_and_commit_links(monitored_links)
+
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    await check_links_once(app.bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+m        msg = f"🎉 <b>Link is ALREADY ACTIVE!</b>\n\n🔗 <b>Link:</b> {link}\n📊 <b>Status:</b> {current_status}\n\n🛑 <i>No need to monitor. Email alert sent instantly!</i>"
         try:
             await update.message.reply_text(msg, parse_mode="HTML", disable_web_page_preview=False)
             email_subject = "Success Alert: Link is ACTIVE!"
